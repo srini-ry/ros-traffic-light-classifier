@@ -17,18 +17,17 @@ GREEN = 1
 UNKNOWN = 2
 RADIUS_MULTIPLIER = 6
 
-# Optional tlr_result
+model = None
 
-def calculate_bounds(roi_signal):
+
+def calculate_bounds(signal):
   xmin = sys.maxint
-  xmax = -sys.maxint -1
+  xmax = -sys.maxint - 1
   ymin = sys.maxint
-  ymax = -sys.maxint -1
+  ymax = -sys.maxint - 1
   radius_max = 0
 
-
-
-  for signal in roi_signal.Signals:
+  for signal in signal.Signals:
     x = signal.u
     y = signal.v
     radius_max = max(radius_max, signal.radius)
@@ -37,21 +36,19 @@ def calculate_bounds(roi_signal):
     ymin = min(ymin, y)
     ymax = max(ymax, y)
 
-  return int(xmin - RADIUS_MULTIPLIER * radius_max), int(xmax + RADIUS_MULTIPLIER * radius_max), int(ymin - RADIUS_MULTIPLIER * radius_max), int(ymax + RADIUS_MULTIPLIER * radius_max)
+  return int(xmin - RADIUS_MULTIPLIER * radius_max), int(xmax + RADIUS_MULTIPLIER * radius_max), int(
+    ymin - RADIUS_MULTIPLIER * radius_max), int(ymax + RADIUS_MULTIPLIER * radius_max)
 
 
 def crop_image(image, xmin, xmax, ymin, ymax):
   return image.crop((xmin, ymin, xmax, ymax))
 
-model = None
 
 def predict_light(cropped_roi):
   # Load CNN Model
-  global model
-  if not model:
-    model = load_model('light_classifier_model.h5')
+  loaded_model = get_model()
   image_array = img_to_array(cropped_roi.resize((64, 64), PIL.Image.ANTIALIAS))
-  prediction = model.predict(image_array[None, :])
+  prediction = loaded_model.predict(image_array[None, :])
   if prediction[0][0] == 1:
     return GREEN
   elif prediction[0][1] == 1:
@@ -59,19 +56,27 @@ def predict_light(cropped_roi):
   else:
     return UNKNOWN
 
-def detect_signal(roi_signal, camera_image):
 
+def get_model():
+  # TODO Fix: Must load model from ROS callback thread
+  global model
+  if not model:
+    model = load_model('light_classifier_model.h5')
+  return model
+
+
+def detect_signal(signal, image):
   # No signals available
-  if len(roi_signal.Signals) == 0:
+  if len(signal.Signals) == 0:
     return
 
   # Convert the image to PIL
   cv_bridge = CvBridge()
-  cv_image = cv_bridge.imgmsg_to_cv2(camera_image, "rgb8")
+  cv_image = cv_bridge.imgmsg_to_cv2(image, "rgb8")
   image = PIL.Image.fromarray(cv_image)
 
   # Find the bounds of the signal
-  xmin, xmax, ymin, ymax = calculate_bounds(roi_signal)
+  xmin, xmax, ymin, ymax = calculate_bounds(signal)
 
   # Crop the image for the ROI
   cropped_roi = crop_image(image, xmin, xmax, ymin, ymax)

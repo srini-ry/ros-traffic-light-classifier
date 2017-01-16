@@ -66,8 +66,9 @@ def get_model():
 
 
 def detect_signal(signal, image):
-  # No signals available
   if len(signal.Signals) == 0:
+    # No signals are visible
+    light_detected_publisher.publish(traffic_light(traffic_light=UNKNOWN))
     return
 
   # Convert the image to PIL
